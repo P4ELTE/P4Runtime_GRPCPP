@@ -32,7 +32,7 @@ OBJECTS=""
 for src in $PROTO_PB_S
 do
         echo Compiling $src
-        obj=`echo $src | sed 's/c$/o/' | sed 's/^.*\///g'`
+        obj=`echo $src | sed 's/cc$/o/' | sed 's/^.*\///g'`
         g++ ${DEBUG} ${IFLAGS} -std=c++11 `pkg-config --cflags protobuf grpc` -c -o ./obj/${obj} ${src}
 	OBJECTS="$OBJECTS ./obj/${obj}"
 #       gcc ${DEBUG} ${IFLAGS} -c -o ./obj/${obj} ${src}
@@ -42,7 +42,7 @@ done
 for src in $PROTO_SOURCES
 do
 	echo Compiling $src
-	obj=`echo $src | sed 's/c$/o/' | sed 's/^.*\///g'`
+	obj=`echo $src | sed 's/cc$/o/' | sed 's/^.*\///g'`
 	g++ ${DEBUG} ${IFLAGS} -std=c++11 `pkg-config --cflags protobuf grpc` -c -o ./obj/${obj} ${src}
 	OBJECTS="$OBJECTS ./obj/${obj}"
 #	gcc ${DEBUG} ${IFLAGS} -c -o ./obj/${obj} ${src}
@@ -79,12 +79,12 @@ rm -rf include
 mkdir -p include
 mkdir -p include/p4rt
 mkdir -p include/utils
-cp server/device_mgr.h include/p4rt/
+cp inc/device_mgr.h include/p4rt/
 cp server/config.h include/
 cp utils/map.h include/utils/
 
 
 echo "Static library is available in folder ./static_lib"
-echo "Usage example:"
-echo "gcc ${IFLAGS} server/test_server.c -L./static_lib -lp4rt -L${GRPCDIR}/lib/.libs -lgrpc-c ${LFLAGS} -o test_server"
+#echo "Usage example:"
+#echo "gcc ${IFLAGS} server/test_server.c -L./static_lib -lp4rt -L${GRPCDIR}/lib/.libs -lgrpc-c ${LFLAGS} -o test_server"
 
