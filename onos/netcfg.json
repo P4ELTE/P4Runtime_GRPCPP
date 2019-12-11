@@ -1,0 +1,13 @@
+{
+  "devices": {
+    "device:leaf1": {
+      "basic": {
+        "managementAddress": "grpc://127.0.0.1:50051?device_id=1",
+        "driver": "bmv2",
+        "pipeconf": "t4p4s-l2fwdgen"
+      },
+      "ports": {
+      }
+    } 
+  }
+}

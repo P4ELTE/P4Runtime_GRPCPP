@@ -1,0 +1,54 @@
+pkg_info {
+  arch: "v1model"
+}
+tables {
+  preamble {
+    id: 33610402
+    name: "dmac"
+    alias: "dmac"
+  }
+  match_fields {
+    id: 1
+    name: "ethernet.dstAddr"
+    bitwidth: 48
+    match_type: EXACT
+  }
+  action_refs {
+    id: 16811908
+  }
+  action_refs {
+    id: 16792690
+  }
+  action_refs {
+    id: 16800567
+    annotations: "@defaultonly"
+    scope: DEFAULT_ONLY
+  }
+  size: 512
+}
+actions {
+  preamble {
+    id: 16800567
+    name: "NoAction"
+    alias: "NoAction"
+  }
+}
+actions {
+  preamble {
+    id: 16811908
+    name: "forward"
+    alias: "forward"
+  }
+  params {
+    id: 1
+    name: "port"
+    bitwidth: 9
+  }
+}
+actions {
+  preamble {
+    id: 16792690
+    name: "bcast"
+    alias: "bcast"
+  }
+}
