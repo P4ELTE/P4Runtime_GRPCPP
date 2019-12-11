@@ -35,8 +35,8 @@ CFLAGS += -I "$(CDIR)/srcgen"
 VPATH  += $(CDIR)/srcgen
 
 # P4Runtime support
-GRPCDIR = "$(CDIR)/../../../grpc-c/build"
-P4RTDIR = "$(CDIR)/../../../P4RuntimeAPI_cpp"
+#GRPCDIR = "$(CDIR)/../../../grpc-c/build"
+P4RTDIR = "$(CDIR)/../../../P4Runtime_GRPCPP"
 PIDIR = "$(CDIR)/../../../PI"
 
 CFLAGS += -I "$(P4RTDIR)"
