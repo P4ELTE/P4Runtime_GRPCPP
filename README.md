@@ -71,7 +71,13 @@ xyz@xyz > logout
 ```
 
 ## Compiling with T4P4S
-TBA...
+Copy the content of t4p4s_mod into the t4p4s folder. It overwrites the makefiles and the control plane API generator part.
+It may happen that the paths in the makefiles should be updated.
+
+After that T4P4S can be compiled and executed by, for example, 
+```
+./t4p4s.sh :l2fwd-gen
+```
 
 
 

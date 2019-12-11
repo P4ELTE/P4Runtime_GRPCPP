@@ -1,0 +1,7 @@
+cpp-out
+grpc-cpp-out
+include
+obj
+pi_server
+static_lib
+test_server.o
