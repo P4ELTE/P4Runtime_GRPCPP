@@ -275,6 +275,76 @@ grpc::Status table_write(device_mgr_t *dm, ::p4::v1::Update::Type update, const 
 	return status;
 }
 
+grpc::Status counter_write(device_mgr_t *dm, ::p4::v1::Update::Type update, const ::p4::v1::CounterEntry &counter_entry) {
+        grpc::Status status;
+        if (!check_p4_id(counter_entry.counter_id(), P4IDS_COUNTER)) {
+                status = grpc::Status( grpc::StatusCode::UNKNOWN, "P4ID is not unknown" );
+                return status; /*TODO: more informative error msg is needed!!!*/
+        }
+	if (!counter_entry.has_index()) {
+		status = grpc::Status( grpc::StatusCode::UNIMPLEMENTED, "Wildcard write is not supported" );
+		return status;
+	}
+	if (counter_entry.index().index() < 0) {
+		status = grpc::Status( grpc::StatusCode::UNIMPLEMENTED, "A negative number is not a valid index value." );
+		return status;
+	}
+
+	auto index = static_cast<size_t>(counter_entry.index().index());
+
+	switch(update) {
+		case ::p4::v1::Update::MODIFY:
+		case ::p4::v1::Update::DELETE:
+		default:
+			status = grpc::Status( grpc::StatusCode::UNKNOWN, "Unknown update message" );
+                        /*TODO: more informative error msg is needed!!!*/
+                        break;
+
+	}
+
+	return status; 
+}
+
+void counter_read_one(device_mgr_t *dm, ::p4::v1::CounterData *data) {
+ /* READ a single element ???*/
+}
+
+grpc::Status counter_read(device_mgr_t *dm, const ::p4::v1::CounterEntry &counter_entry, ::p4::v1::ReadResponse *response) {
+        grpc::Status status;
+        if (!check_p4_id(counter_entry.counter_id(), P4IDS_COUNTER) && counter_entry.counter_id()!=0) {
+                status = grpc::Status( grpc::StatusCode::UNKNOWN, "P4ID is not unknown" );
+                return status; /*TODO: more informative error msg is needed!!!*/
+        }
+	
+	auto counter_id = counter_entry.counter_id();
+	if (!counter_entry.has_index()) {
+		/* TODO: read all elements as in https://github.com/p4lang/PI/blob/master/proto/frontend/src/device_mgr.cpp */
+		status = grpc::Status( grpc::StatusCode::UNIMPLEMENTED, "no counter index" );
+                return status;
+	} 
+
+	auto index = static_cast<size_t>(counter_entry.index().index());
+	auto entry = response->add_entities()->mutable_counter_entry();
+	entry->CopyFrom(counter_entry);
+	/*TODO: read one element as in https://github.com/p4lang/PI/blob/master/proto/frontend/src/device_mgr.cpp*/
+
+	return status;
+}
+
+
+
+grpc::Status direct_counter_write(device_mgr_t *dm, ::p4::v1::Update::Type update, const ::p4::v1::TableEntry &table_entry) {
+        grpc::Status status;
+        if (!check_p4_id(table_entry.table_id(), P4IDS_TABLE)) {
+                status = grpc::Status( grpc::StatusCode::UNKNOWN, "P4ID is not unknown" );
+                return status; /*TODO: more informative error msg is needed!!!*/
+        }
+
+	status = grpc::Status( grpc::StatusCode::UNIMPLEMENTED, "Direct counters are not supported." );
+
+	return status;
+}
+
 // Copied from p4lang/PI
 class P4ErrorReporter {
  public:
@@ -347,6 +417,14 @@ grpc::Status dev_mgr_write(device_mgr_t *dm, const ::p4::v1::WriteRequest &reque
 			case ::p4::v1::Entity::kTableEntry:
 				status = table_write(dm, update.type(), entity.table_entry());
 				break;
+			case ::p4::v1::Entity::kCounterEntry:
+				status = counter_write(dm, update.type(), entity.counter_entry());
+				break;
+			case ::p4::v1::Entity::kDirectCounterEntry:
+				/*status = direct_counter_write(dm, update.type(), entity.direct_counter_entry());*/
+				break;
+			case ::p4::v1::Entity::kRegisterEntry:
+			case ::p4::v1::Entity::kDigestEntry: /*TODO: Check why?*/
 			default:
 				status = grpc::Status(grpc::StatusCode::UNKNOWN, "Entity case is unknown");
 				break;
@@ -358,9 +436,32 @@ grpc::Status dev_mgr_write(device_mgr_t *dm, const ::p4::v1::WriteRequest &reque
 	return error_reporter.get_status();
 }
 
+grpc::Status dev_mgr_read_one(device_mgr_t *dm, const ::p4::v1::Entity &entity, ::p4::v1::ReadResponse *response) {
+        grpc::Status status(grpc::StatusCode::OK, "ok");
+
+	switch(entity.entity_case()) {
+		case ::p4::v1::Entity::kCounterEntry:
+			status = counter_read(dm, entity.counter_entry(), response);
+			break;
+		default:
+			status = grpc::Status(grpc::StatusCode::UNKNOWN, "Entity case is unknown");
+                        break;
+	}
+	return status;
+}
+
+
 grpc::Status dev_mgr_read(device_mgr_t *dm, const ::p4::v1::ReadRequest &request, ::p4::v1::ReadResponse *response) {
+	grpc::Status status(grpc::StatusCode::OK, "ok");
+	for (const auto &entity : request.entities()) {
+		status = dev_mgr_read_one(dm, entity, response);
+		if (!status.ok()) break;
+	}
+
 	return grpc::Status::OK;
 }
+
+
 
 grpc::Status dev_mgr_set_pipeline_config(device_mgr_t *dm, ::p4::v1::SetForwardingPipelineConfigRequest_Action action, const ::p4::v1::ForwardingPipelineConfig config) {
 	using SetConfigRequest = ::p4::v1::SetForwardingPipelineConfigRequest;
@@ -446,4 +547,28 @@ void dev_mgr_init_with_t4p4s(device_mgr_t *dm, p4_msg_callback cb, uint64_t devi
 	dev_mgr_init(dm);
 	dm->cb = cb;
 	dm->device_id = device_id;
+}
+
+void dev_mgr_send_digest(device_mgr_t *dm, struct p4_digest* digest, uint64_t digest_id) {
+	::p4::v1::StreamMessageResponse response;
+	::p4::v1::DigestList _digest{};
+	::p4::v1::P4Data* data;
+	struct p4_digest_field* df = (struct p4_digest_field*)((void*)digest + sizeof(struct p4_digest));
+	_digest.set_digest_id(digest_id);
+	_digest.set_list_id(1);
+	size_t bytes = 0;
+	data = _digest.add_data();
+	auto *struct_like = data->mutable_tuple();
+	for (int i=0;i<digest->list_size;++i) {
+		bytes = (df->length+7)/8;
+		struct_like->add_members()->set_bitstring(df->value, bytes);
+		df++;
+	}
+
+	response.set_allocated_digest(&_digest);
+	auto succ = dm->stream->Write(response);
+
+	response.release_digest();
+	//_digest.set_list_id(_digest.list_id() + 1);
+	_digest.clear_data();
 }

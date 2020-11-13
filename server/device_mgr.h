@@ -20,10 +20,12 @@ typedef struct device_mgr_t {
 	p4_msg_callback cb;
 	int has_p4info;
 	::p4::config::v1::P4Info p4info;
+	grpc::ServerReaderWriter<::p4::v1::StreamMessageResponse, ::p4::v1::StreamMessageRequest> *stream;
 } device_mgr_t;
 
 typedef enum {
 	P4IDS_TABLE = 0,
+	P4IDS_COUNTER = 1,
 } p4_ids;
 
 grpc::Status table_insert(device_mgr_t *dm, const ::p4::v1::TableEntry &table_entry);
@@ -46,6 +48,7 @@ grpc::Status dev_mgr_get_pipeline_config(device_mgr_t *dm, ::p4::v1::GetForwardi
 extern "C" {
   void dev_mgr_init(device_mgr_t *dm);
   void dev_mgr_init_with_t4p4s(device_mgr_t *dm, p4_msg_callback cb, uint64_t device_id);
+  void dev_mgr_send_digest(device_mgr_t *dm, struct p4_digest* digest);
 }
 
 #endif /* __DEVICE_MGR_H__ */

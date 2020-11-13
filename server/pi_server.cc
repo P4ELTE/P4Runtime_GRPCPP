@@ -160,6 +160,7 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
                                 "Invalid device id");
             		  }
 			  auto election_id = convert_u128(request.arbitration().election_id());
+			  dm.stream = stream;
 			  notify_one(stream, device_id, election_id);
               		  return Status::OK; //, "Invalid");
                          }
