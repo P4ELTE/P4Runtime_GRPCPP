@@ -4,6 +4,18 @@
 #include <fstream>
 #include <stdio.h>
 #include <arpa/inet.h>
+#include <string>
+#include <sstream>
+#include <iomanip>
+
+std::string convbytes(char* data, int len) {
+	std::stringstream ss;
+	for (int i=0;i<len;++i) {
+		ss << std::setfill('0') << std::setw(2) << std::hex <<  (0xff & (unsigned int)data[i]) << " ";
+	}
+	return ss.str();
+}
+
 
 
 struct ConfigFile {
@@ -168,7 +180,9 @@ grpc::Status table_insert(device_mgr_t *dm, const ::p4::v1::TableEntry &table_en
 			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kExact:
 				const auto exact = match.exact();
 				ctrl_m.field_matches[ctrl_m.num_field_matches] = _gen_match_rule_exact(arg, exact);
-				ctrl_m.num_field_matches++;	
+				printf("EXACT MATCH TableID:%d (%s) FieldID:%d (%s) KEY_LENGTH:%d VALUE: %s -- \n", table_id, elem->value, field_id, arg->name, exact.value().size(), convbytes(exact.value().c_str(), (int)exact.value().size()).c_str() );
+				ctrl_m.num_field_matches++;
+				status = grpc::Status::OK;	
 				//status.set_code(Code::OK);
 				break;
 			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kLpm:
@@ -212,6 +226,10 @@ grpc::Status table_insert(device_mgr_t *dm, const ::p4::v1::TableEntry &table_en
 			const auto tmp_act = action.action();
 			action_id = tmp_act.action_id();
 			elem = get_element(&(dm->id_map), action_id);
+			if (elem == NULL) {
+				status = grpc::Status( grpc::StatusCode::INVALID_ARGUMENT, "Invalid ActionId" );
+				break;
+			}
 			ctrl_m.action_name = strdup(elem->value);
 			for (const auto &param: tmp_act.params()) {
 				//param = tmp_act->params[i];
@@ -305,8 +323,16 @@ grpc::Status counter_write(device_mgr_t *dm, ::p4::v1::Update::Type update, cons
 	return status; 
 }
 
-void counter_read_one(device_mgr_t *dm, ::p4::v1::CounterData *data) {
- /* READ a single element ???*/
+void counter_read_one(uint32_t* counter_values_bytes, uint32_t size_bytes, uint32_t* counter_values_packets, uint32_t size_packets, int index, ::p4::v1::ReadResponse *response) {
+	auto entry = response->add_entities()->mutable_counter_entry();
+	if (counter_values_bytes != 0x0 && size_bytes > 0){
+		entry->mutable_data()->set_byte_count(counter_values_bytes[index]);
+		printf("COUNTER VALUE BYTES: %d\n", counter_values_bytes[index]);
+	}
+	if (counter_values_packets != 0x0 && size_packets > 0){
+		entry->mutable_data()->set_packet_count(counter_values_packets[index]);
+		printf("COUNTER VALUE PACKETS: %d\n", counter_values_packets[index]);
+	}
 }
 
 grpc::Status counter_read(device_mgr_t *dm, const ::p4::v1::CounterEntry &counter_entry, ::p4::v1::ReadResponse *response) {
@@ -317,18 +343,33 @@ grpc::Status counter_read(device_mgr_t *dm, const ::p4::v1::CounterEntry &counte
         }
 	
 	auto counter_id = counter_entry.counter_id();
+	element_t *elem = get_element(&(dm->id_map), counter_id);
+	int size_bytes   = -1;
+	int size_packets = -1;
+	uint32_t* counter_values_bytes   = dm->get_counter_by_name(elem->value, &size_bytes, true);
+	uint32_t* counter_values_packets = dm->get_counter_by_name(elem->value, &size_packets, false);
+	if ((counter_values_bytes == 0x0 || size_bytes == -1) && (counter_values_packets == 0x0 || size_packets == -1)){
+		return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Counter cannot be found %s",elem->value );
+	}
 	if (!counter_entry.has_index()) {
-		/* TODO: read all elements as in https://github.com/p4lang/PI/blob/master/proto/frontend/src/device_mgr.cpp */
-		status = grpc::Status( grpc::StatusCode::UNIMPLEMENTED, "no counter index" );
-                return status;
+		/*TODO: read one element as in https://github.com/p4lang/PI/blob/master/proto/frontend/src/device_mgr.cpp*/
+		if (counter_entry.index().index() < 0) {
+			status = grpc::Status( grpc::StatusCode::UNKNOWN, "counter index negative" );
+                	return status;
+		}
+		auto index = static_cast<size_t>(counter_entry.index().index());
+		counter_read_one(counter_values_bytes, size_bytes, counter_values_packets, size_packets, index, response);
+		status = grpc::Status::OK;
+	        return status;
 	} 
 
-	auto index = static_cast<size_t>(counter_entry.index().index());
-	auto entry = response->add_entities()->mutable_counter_entry();
-	entry->CopyFrom(counter_entry);
-	/*TODO: read one element as in https://github.com/p4lang/PI/blob/master/proto/frontend/src/device_mgr.cpp*/
+	/* TODO: read all elements as in https://github.com/p4lang/PI/blob/master/proto/frontend/src/device_mgr.cpp */
 
-	return status;
+	for (int index = 0; index < size_packets && index < size_bytes; index++){
+		counter_read_one(counter_values_bytes, size_bytes, counter_values_packets, size_packets, index, response);
+	}
+	status = grpc::Status::OK;
+        return status;
 }
 
 
@@ -508,6 +549,12 @@ grpc::Status dev_mgr_set_pipeline_config(device_mgr_t *dm, ::p4::v1::SetForwardi
         	                elem->n_args++;
                 	}
 		}
+                for (const auto &counter : dm->p4info.counters()) {
+                        const auto &pre = counter.preamble();
+                        printf("  [#] COUNTER id: %d; name: %s\n", pre.id(), pre.name().c_str());
+                        elem = add_element(&(dm->id_map), pre.id(), pre.name().c_str());
+                }
+
 
 		return status;
 	}
@@ -543,9 +590,10 @@ void dev_mgr_init(device_mgr_t *dm) {
 	dm->has_p4info = 0;
 }
 
-void dev_mgr_init_with_t4p4s(device_mgr_t *dm, p4_msg_callback cb, uint64_t device_id) {
+void dev_mgr_init_with_t4p4s(device_mgr_t *dm, p4_msg_callback cb, p4_cnt_read get_counter_by_name, uint64_t device_id) {
 	dev_mgr_init(dm);
 	dm->cb = cb;
+	dm->get_counter_by_name = get_counter_by_name;
 	dm->device_id = device_id;
 }
 

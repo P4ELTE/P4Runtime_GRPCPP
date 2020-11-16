@@ -18,6 +18,7 @@ typedef struct device_mgr_t {
 	/*TODO: ADD P4Info and other meta information */
 	map_t id_map;
 	p4_msg_callback cb;
+	p4_cnt_read get_counter_by_name;
 	int has_p4info;
 	::p4::config::v1::P4Info p4info;
 	grpc::ServerReaderWriter<::p4::v1::StreamMessageResponse, ::p4::v1::StreamMessageRequest> *stream;
@@ -47,7 +48,7 @@ grpc::Status dev_mgr_get_pipeline_config(device_mgr_t *dm, ::p4::v1::GetForwardi
 
 extern "C" {
   void dev_mgr_init(device_mgr_t *dm);
-  void dev_mgr_init_with_t4p4s(device_mgr_t *dm, p4_msg_callback cb, uint64_t device_id);
+  void dev_mgr_init_with_t4p4s(device_mgr_t *dm, p4_msg_callback cb, p4_cnt_read get_counter_by_name, uint64_t device_id);
   void dev_mgr_send_digest(device_mgr_t *dm, struct p4_digest* digest);
 }
 
