@@ -149,6 +149,7 @@ grpc::Status table_insert(device_mgr_t *dm, const ::p4::v1::TableEntry &table_en
 	size_t i;
 	int32_t prefix_len = 0; /* in bits */
 
+
 	grpc::Status status = grpc::Status::OK;
 //	::p4::v1::FieldMatch match;
 //	::p4::v1::TableAction action;
@@ -177,15 +178,16 @@ grpc::Status table_insert(device_mgr_t *dm, const ::p4::v1::TableEntry &table_en
 			printf("NULL ARGUMENT for FIELD_ID=%d\n", field_id);
 		}
 		switch(match.field_match_type_case()) {
-			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kExact:
+			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kExact: {
 				const auto exact = match.exact();
 				ctrl_m.field_matches[ctrl_m.num_field_matches] = _gen_match_rule_exact(arg, exact);
 				printf("EXACT MATCH TableID:%d (%s) FieldID:%d (%s) KEY_LENGTH:%d VALUE: %s -- \n", table_id, elem->value, field_id, arg->name, exact.value().size(), convbytes(exact.value().c_str(), (int)exact.value().size()).c_str() );
 				ctrl_m.num_field_matches++;
 				status = grpc::Status::OK;	
 				//status.set_code(Code::OK);
-				break;
-			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kLpm:
+				break; }
+			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kLpm: {
+				printf(" -- LPM\n");
 				const auto lpm = match.lpm();
 				prefix_len = lpm.prefix_len();
                                 if (lpm.value().size()>=4) {
@@ -198,19 +200,20 @@ grpc::Status table_insert(device_mgr_t *dm, const ::p4::v1::TableEntry &table_en
 				ctrl_m.field_matches[ctrl_m.num_field_matches] = _gen_match_rule_lpm(arg, lpm);
 				ctrl_m.num_field_matches++;
 				status = grpc::Status::OK;
-				break;
-			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kTernary:
+				break; }
+			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kTernary: {
 				const auto ternary = match.ternary();
 				printf("TERNARY MATCH TableID:%d (%s) FieldID:%d (%s) KEY_LENGTH:%d VALUE16: %d M_LEN:%d MASK:%d  --\n", table_id, elem->value, field_id, arg->name, ternary.value().size(), ternary.value().c_str()[0], ternary.mask().size(), ternary.mask().c_str()[0]); /* len - length , data - uint8_t* */
 				ctrl_m.field_matches[ctrl_m.num_field_matches] = _gen_match_rule_ternary(arg, ternary);
 				ctrl_m.num_field_matches++;
                                 //status.gcs_code = GOOGLE__RPC__CODE__OK;
-                                break;
+                                break;}
 
-			case ::p4::v1::FieldMatch::FieldMatchTypeCase::kRange:	
-			default:
+			//case ::p4::v1::FieldMatch::FieldMatchTypeCase::kRange:	
+			default: {
+				printf("unimplemented\n");
 				status = grpc::Status( grpc::StatusCode::UNIMPLEMENTED, "MatchType is not implemented" );
-				break;
+				break;}
 		}
 	}
 //return status; } //
@@ -275,20 +278,20 @@ grpc::Status table_write(device_mgr_t *dm, ::p4::v1::Update::Type update, const 
 	}
 
 	switch (update) {
-		case ::p4::v1::Update::UNSPECIFIED:
+		case ::p4::v1::Update::UNSPECIFIED: {
 			status = grpc::Status( grpc::StatusCode::INVALID_ARGUMENT, "Invalid argument" );
 			/*TODO: more informative error msg is needed!!!*/
-	        	break;
-		case ::p4::v1::Update::INSERT:
-			return table_insert(dm, table_entry);
-		case ::p4::v1::Update::MODIFY:
-			return table_modify(dm, table_entry);
-		case ::p4::v1::Update::DELETE:
-			return table_delete(dm, table_entry);
-		default:
+	        	break; }
+		case ::p4::v1::Update::INSERT: {
+			return table_insert(dm, table_entry);}
+		case ::p4::v1::Update::MODIFY: {
+			return table_modify(dm, table_entry);}
+		case ::p4::v1::Update::DELETE: {
+			return table_delete(dm, table_entry);}
+		default: {
 			status = grpc::Status( grpc::StatusCode::UNKNOWN, "Unknown update message" );
 			/*TODO: more informative error msg is needed!!!*/
-			break;
+			break;}
 	}
 	return status;
 }
@@ -455,20 +458,20 @@ grpc::Status dev_mgr_write(device_mgr_t *dm, const ::p4::v1::WriteRequest &reque
 	for (const auto &update : request.updates()) {
 		const auto entity = update.entity();
 		switch(entity.entity_case()) {
-			case ::p4::v1::Entity::kTableEntry:
+			case ::p4::v1::Entity::kTableEntry: {
 				status = table_write(dm, update.type(), entity.table_entry());
-				break;
-			case ::p4::v1::Entity::kCounterEntry:
+				break; }
+			case ::p4::v1::Entity::kCounterEntry: {
 				status = counter_write(dm, update.type(), entity.counter_entry());
-				break;
-			case ::p4::v1::Entity::kDirectCounterEntry:
+				break; }
+			case ::p4::v1::Entity::kDirectCounterEntry: {
 				/*status = direct_counter_write(dm, update.type(), entity.direct_counter_entry());*/
-				break;
+				break; }
 			case ::p4::v1::Entity::kRegisterEntry:
 			case ::p4::v1::Entity::kDigestEntry: /*TODO: Check why?*/
-			default:
+			default: {
 				status = grpc::Status(grpc::StatusCode::UNKNOWN, "Entity case is unknown");
-				break;
+				break; }
 		}
 		/* TODO:collect multiple status messages - now we assume a simple update */
 		error_reporter.push_back(status);
@@ -481,12 +484,12 @@ grpc::Status dev_mgr_read_one(device_mgr_t *dm, const ::p4::v1::Entity &entity, 
         grpc::Status status(grpc::StatusCode::OK, "ok");
 
 	switch(entity.entity_case()) {
-		case ::p4::v1::Entity::kCounterEntry:
+		case ::p4::v1::Entity::kCounterEntry: {
 			status = counter_read(dm, entity.counter_entry(), response);
-			break;
-		default:
+			break; }
+		default: {
 			status = grpc::Status(grpc::StatusCode::UNKNOWN, "Entity case is unknown");
-                        break;
+                        break; }
 	}
 	return status;
 }
@@ -565,20 +568,20 @@ grpc::Status dev_mgr_set_pipeline_config(device_mgr_t *dm, ::p4::v1::SetForwardi
 grpc::Status dev_mgr_get_pipeline_config(device_mgr_t *dm, ::p4::v1::GetForwardingPipelineConfigRequest::ResponseType response_type, ::p4::v1::ForwardingPipelineConfig *config) {
 	using GetConfigRequest = ::p4::v1::GetForwardingPipelineConfigRequest;
 	switch (response_type) {
-      		case GetConfigRequest::ALL:
+      		case GetConfigRequest::ALL: {
         		config->mutable_p4info()->CopyFrom(dm->p4info);
         		saved_device_config.read_config(config);
-        		break;
-      		case GetConfigRequest::COOKIE_ONLY:
-        		break;
-      		case GetConfigRequest::P4INFO_AND_COOKIE:
+        		break;}
+      		case GetConfigRequest::COOKIE_ONLY: {
+        		break;}
+      		case GetConfigRequest::P4INFO_AND_COOKIE: {
         		config->mutable_p4info()->CopyFrom(dm->p4info);
-        		break;
-      		case GetConfigRequest::DEVICE_CONFIG_AND_COOKIE:
+        		break;}
+      		case GetConfigRequest::DEVICE_CONFIG_AND_COOKIE: {
         		saved_device_config.read_config(config);
-        		break;
-      		default:
-			return grpc::Status::OK;
+        		break;}
+      		default: {
+			return grpc::Status::OK;}
     	}
 	if (has_config_cookie)
       		config->mutable_cookie()->CopyFrom(config_cookie);
