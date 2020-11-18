@@ -129,14 +129,14 @@ struct p4_action_parameter* _gen_action_param(argument_t *arg, const ::p4::v1::A
 	strcpy(result->name, arg->name);
 	result->length = arg->bitwidth;
 	memcpy(result->bitmap, param.value().c_str(), param.value().size());
-	if (param.value().size()==2) {
+/*	if (param.value().size()==2) {
 		tmp16 = (uint16_t*)result->bitmap;
 		*tmp16 = htons(*tmp16);
 	} else if (param.value().size()==4) {
 		tmp32 = (uint32_t*)result->bitmap;
 		*tmp32 = htonl(*tmp32);
         }
-
+*/
 	return result; /* TODO: NTOH  */
 }
 
@@ -224,7 +224,7 @@ grpc::Status table_insert(device_mgr_t *dm, const ::p4::v1::TableEntry &table_en
 	const auto action = table_entry.action();
 
 	switch(action.type_case()) {
-		case ::p4::v1::TableAction::TypeCase::kAction:
+		case ::p4::v1::TableAction::TypeCase::kAction: {
 			ctrl_m.action_type = P4_AT_ACTION; /* ACTION PROFILE IS NOT SUPPORTED */
 			const auto tmp_act = action.action();
 			action_id = tmp_act.action_id();
@@ -241,10 +241,10 @@ grpc::Status table_insert(device_mgr_t *dm, const ::p4::v1::TableEntry &table_en
 				ctrl_m.num_action_params++;
 			}
 			//status.gcs_code = GOOGLE__RPC__CODE__OK;
-			break;
-		default:
+			break; }
+		default: {
 			status = grpc::Status( grpc::StatusCode::UNIMPLEMENTED, "ActionType is not implemented" );
-			break;
+			break; }
 	}
 
 	if (status.ok()) {
