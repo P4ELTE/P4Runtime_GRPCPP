@@ -162,15 +162,23 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
 			  auto election_id = convert_u128(request.arbitration().election_id());
 			  dm.stream = stream;
 			  notify_one(stream, device_id, election_id);
-              		  return Status::OK; //, "Invalid");
+                          //return Status::OK; //, "Invalid");
                          }
           		 break;
         		 case p4v1::StreamMessageRequest::kPacket:
         		 case p4v1::StreamMessageRequest::kDigestAck:
           		 {
-            		 //auto device_id = connection_status.device_id;
-            		 //Devices::get(device_id)->process_stream_message_request(
-                	 //connection_status.connection.get(), request);
+				 /* TODO: send response if there is an error. It is not handled currently. */
+                           //stream_message_request_handle(dm, request);
+                           //p4v1::StreamMessageResponse response;
+			   //p4vi::StreamError stream_error;
+                           //auto digest = response.mutable_digest();
+                           //digest->set_digest_id(request.digest_ack().digest_id());
+                           //digest->set_list_id(request.digest_ack().list_id());
+                           //stream->Write(response);
+              		   //auto device_id = connection_status.device_id;
+            		   //Devices::get(device_id)->process_stream_message_request(
+                	   //connection_status.connection.get(), request);
           		 }
           		 break;
         		 default:

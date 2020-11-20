@@ -7,6 +7,7 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <chrono>
 
 std::string convbytes(char* data, int len) {
 	std::stringstream ss;
@@ -467,8 +468,10 @@ grpc::Status dev_mgr_write(device_mgr_t *dm, const ::p4::v1::WriteRequest &reque
 			case ::p4::v1::Entity::kDirectCounterEntry: {
 				/*status = direct_counter_write(dm, update.type(), entity.direct_counter_entry());*/
 				break; }
-			case ::p4::v1::Entity::kRegisterEntry:
-			case ::p4::v1::Entity::kDigestEntry: /*TODO: Check why?*/
+			//case ::p4::v1::Entity::kRegisterEntry:
+			case ::p4::v1::Entity::kDigestEntry: { /*TODO: Configuration */
+				dm->digest_id = entity.digest_entry().digest_id();
+				break; }
 			default: {
 				status = grpc::Status(grpc::StatusCode::UNKNOWN, "Entity case is unknown");
 				break; }
@@ -601,25 +604,31 @@ void dev_mgr_init_with_t4p4s(device_mgr_t *dm, p4_msg_callback cb, p4_cnt_read g
 }
 
 void dev_mgr_send_digest(device_mgr_t *dm, struct p4_digest* digest, uint64_t digest_id) {
+	using Clock = std::chrono::steady_clock;
 	::p4::v1::StreamMessageResponse response;
 	::p4::v1::DigestList _digest{};
 	::p4::v1::P4Data* data;
-	struct p4_digest_field* df = (struct p4_digest_field*)((void*)digest + sizeof(struct p4_digest));
+	struct p4_digest_field* df = (struct p4_digest_field*)((char*)digest + sizeof(struct p4_digest));
+	digest_id = dm->digest_id; // 401035839; //0x17; /* TODO: support multiple digests*/
 	_digest.set_digest_id(digest_id);
-	_digest.set_list_id(1);
+	//_digest.set_list_id(1);
 	size_t bytes = 0;
 	data = _digest.add_data();
+        printf("# Generate digest:%s\n", digest->field_list_name);
 	auto *struct_like = data->mutable_tuple();
 	for (int i=0;i<digest->list_size;++i) {
-		bytes = (df->length+7)/8;
+		printf(" # Field name:%s\n", df->name);
+		bytes = (htonl(df->length)+7)/8;
 		struct_like->add_members()->set_bitstring(df->value, bytes);
 		df++;
 	}
 
+	_digest.set_timestamp( std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count() );
 	response.set_allocated_digest(&_digest);
+	printf(response.DebugString().c_str());
 	auto succ = dm->stream->Write(response);
 
 	response.release_digest();
-	//_digest.set_list_id(_digest.list_id() + 1);
+	_digest.set_list_id(_digest.list_id() + 1);
 	_digest.clear_data();
 }

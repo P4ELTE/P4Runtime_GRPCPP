@@ -45,6 +45,7 @@ grpc::Status dev_mgr_get_pipeline_config(device_mgr_t *dm, ::p4::v1::GetForwardi
 extern "C" {*/
   void dev_mgr_init(device_mgr_t *dm);
   void dev_mgr_init_with_t4p4s(device_mgr_t *dm, p4_msg_callback cb, p4_cnt_read get_counter_by_name, uint64_t device_id);
+  void dev_mgr_send_digest(device_mgr_t *dm, struct p4_digest* digest, uint64_t digest_id);
 //}
 
 #endif /* __DEVICE_MGR_H__ */
