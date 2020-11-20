@@ -331,11 +331,11 @@ void counter_read_one(uint32_t* counter_values_bytes, uint32_t size_bytes, uint3
 	auto entry = response->add_entities()->mutable_counter_entry();
 	if (counter_values_bytes != 0x0 && size_bytes > 0){
 		entry->mutable_data()->set_byte_count(counter_values_bytes[index]);
-		printf("COUNTER VALUE BYTES: %d\n", counter_values_bytes[index]);
+		//printf("COUNTER VALUE BYTES: %d\n", counter_values_bytes[index]);
 	}
 	if (counter_values_packets != 0x0 && size_packets > 0){
 		entry->mutable_data()->set_packet_count(counter_values_packets[index]);
-		printf("COUNTER VALUE PACKETS: %d\n", counter_values_packets[index]);
+		//printf("COUNTER VALUE PACKETS: %d\n", counter_values_packets[index]);
 	}
 }
 
@@ -470,7 +470,14 @@ grpc::Status dev_mgr_write(device_mgr_t *dm, const ::p4::v1::WriteRequest &reque
 				break; }
 			//case ::p4::v1::Entity::kRegisterEntry:
 			case ::p4::v1::Entity::kDigestEntry: { /*TODO: Configuration */
-				dm->digest_id = entity.digest_entry().digest_id();
+				const auto &digest_id = entity.digest_entry().digest_id();
+				for (auto it : dm->digest_map) {
+					if (it.second.first==digest_id) {
+						dm->digest_map[it.first].second = true;
+						printf("  [#] DIGEST id: %d; name: %s; activated\n", it.second.first, it.first.c_str());
+						break;
+					}
+				}
 				break; }
 			default: {
 				status = grpc::Status(grpc::StatusCode::UNKNOWN, "Entity case is unknown");
@@ -560,6 +567,12 @@ grpc::Status dev_mgr_set_pipeline_config(device_mgr_t *dm, ::p4::v1::SetForwardi
                         printf("  [#] COUNTER id: %d; name: %s\n", pre.id(), pre.name().c_str());
                         elem = add_element(&(dm->id_map), pre.id(), pre.name().c_str());
                 }
+		dm->digest_map.clear();
+		for (const auto &digest : dm->p4info.digests()) {
+			const auto &pre = digest.preamble();
+			printf("  [#] DIGEST id: %d; name: %s; inactive\n", pre.id(), pre.name().c_str());
+			dm->digest_map[pre.name()] = std::make_pair(pre.id(),false);
+		}
 
 
 		return status;
@@ -609,15 +622,21 @@ void dev_mgr_send_digest(device_mgr_t *dm, struct p4_digest* digest, uint64_t di
 	::p4::v1::DigestList _digest{};
 	::p4::v1::P4Data* data;
 	struct p4_digest_field* df = (struct p4_digest_field*)((char*)digest + sizeof(struct p4_digest));
-	digest_id = dm->digest_id; // 401035839; //0x17; /* TODO: support multiple digests*/
+	auto it = dm->digest_map.find(std::string(digest->field_list_name));
+	if (it != dm->digest_map.end() && it->second.second) {
+		digest_id = it->second.first;
+	}
+	else {
+		return; // No digest receiver registered...
+	}
 	_digest.set_digest_id(digest_id);
 	//_digest.set_list_id(1);
 	size_t bytes = 0;
 	data = _digest.add_data();
-        printf("# Generate digest:%s\n", digest->field_list_name);
+        //printf("# Generate digest:%s\n", digest->field_list_name);
 	auto *struct_like = data->mutable_tuple();
 	for (int i=0;i<digest->list_size;++i) {
-		printf(" # Field name:%s\n", df->name);
+		//printf(" # Field name:%s\n", df->name);
 		bytes = (htonl(df->length)+7)/8;
 		struct_like->add_members()->set_bitstring(df->value, bytes);
 		df++;
@@ -625,7 +644,7 @@ void dev_mgr_send_digest(device_mgr_t *dm, struct p4_digest* digest, uint64_t di
 
 	_digest.set_timestamp( std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count() );
 	response.set_allocated_digest(&_digest);
-	printf(response.DebugString().c_str());
+	//printf(response.DebugString().c_str());
 	auto succ = dm->stream->Write(response);
 
 	response.release_digest();

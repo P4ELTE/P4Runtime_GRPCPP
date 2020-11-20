@@ -10,12 +10,14 @@
 #include "messages.h" /* T4P4S*/
 //#include <grpc++/grpc++.h>
 #include <grpcpp/grpcpp.h>
-
+#include <map>
+#include <utility>
+#include <string>
 
 
 typedef struct device_mgr_t {
 	uint64_t device_id;
-	uint64_t digest_id; /* TODO: extend it to support multiple digests */
+	std::map<std::string, std::pair<uint64_t,bool>> digest_map;
 	/*TODO: ADD P4Info and other meta information */
 	map_t id_map;
 	p4_msg_callback cb;

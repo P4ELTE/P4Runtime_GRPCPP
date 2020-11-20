@@ -94,7 +94,7 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
                const p4v1::WriteRequest *request,
                p4v1::WriteResponse *rep) override {
     		SIMPLELOG << "P4Runtime Write\n";
-    		SIMPLELOG << request->DebugString();
+    		//SIMPLELOG << request->DebugString();
     		(void) rep;
     		SIMPLELOG << "Device ID:: " << request->device_id() << std::endl;
     		if (dm.has_p4info == 0) return no_pipeline_config_status();
@@ -107,7 +107,7 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
                const p4v1::ReadRequest *request,
                ServerWriter<p4v1::ReadResponse> *writer) override {
     		SIMPLELOG << "P4Runtime Read\n";
-    		SIMPLELOG << request->DebugString();
+    		//SIMPLELOG << request->DebugString();
     		p4v1::ReadResponse response;
 		SIMPLELOG << "Device ID:: " << request->device_id() << std::endl;
                 if (dm.has_p4info == 0) {
@@ -134,7 +134,7 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
                const p4v1::GetForwardingPipelineConfigRequest *request,
                p4v1::GetForwardingPipelineConfigResponse *rep) override {
 		SIMPLELOG << "P4Runtime GetForwardingPipelineConfig\n";
-		SIMPLELOG << request->DebugString();
+		//SIMPLELOG << request->DebugString();
 		SIMPLELOG << "Device ID:: " << request->device_id() << std::endl;
     		if (dm.has_p4info == 0) {
 			SIMPLELOG << " -- No pipeline config status\n";
@@ -149,7 +149,7 @@ class P4RuntimeServiceImpl : public p4v1::P4Runtime::Service {
 		p4v1::StreamMessageRequest request;
 		SIMPLELOG << "P4Runtime StreamChannel\n";
 		while (stream->Read(&request)) {
-			SIMPLELOG << request.DebugString();
+			//SIMPLELOG << request.DebugString();
       			switch (request.update_case()) {
         		 case p4v1::StreamMessageRequest::kArbitration:
           		 {
