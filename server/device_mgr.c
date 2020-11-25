@@ -330,8 +330,7 @@ grpc::Status counter_write(device_mgr_t *dm, ::p4::v1::Update::Type update, cons
 	return status; 
 }
 
-void counter_read_one(uint32_t* counter_values_bytes, uint32_t size_bytes, uint32_t* counter_values_packets, uint32_t size_packets, int index, ::p4::v1::ReadResponse *response) {
-	auto entry = response->add_entities()->mutable_counter_entry();
+void counter_read_one(uint32_t* counter_values_bytes, uint32_t size_bytes, uint32_t* counter_values_packets, uint32_t size_packets, int index, ::p4::v1::CounterEntry *entry) {
 	if (counter_values_bytes != 0x0 && size_bytes > 0){
 		entry->mutable_data()->set_byte_count(counter_values_bytes[index]);
 		//printf("COUNTER VALUE BYTES: %d\n", counter_values_bytes[index]);
@@ -358,22 +357,28 @@ grpc::Status counter_read(device_mgr_t *dm, const ::p4::v1::CounterEntry &counte
 	if ((counter_values_bytes == 0x0 || size_bytes == -1) && (counter_values_packets == 0x0 || size_packets == -1)){
 		return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, "Counter cannot be found %s",elem->value );
 	}
-	if (!counter_entry.has_index()) {
+	if (counter_entry.has_index()) {
 		/*TODO: read one element as in https://github.com/p4lang/PI/blob/master/proto/frontend/src/device_mgr.cpp*/
 		if (counter_entry.index().index() < 0) {
 			status = grpc::Status( grpc::StatusCode::UNKNOWN, "counter index negative" );
                 	return status;
 		}
 		auto index = static_cast<size_t>(counter_entry.index().index());
-		counter_read_one(counter_values_bytes, size_bytes, counter_values_packets, size_packets, index, response);
+		auto entry = response->add_entities()->mutable_counter_entry();
+		entry->CopyFrom(counter_entry);
+		counter_read_one(counter_values_bytes, size_bytes, counter_values_packets, size_packets, index, entry);
 		status = grpc::Status::OK;
 	        return status;
 	} 
 
 	/* TODO: read all elements as in https://github.com/p4lang/PI/blob/master/proto/frontend/src/device_mgr.cpp */
 
-	for (int index = 0; index < size_packets && index < size_bytes; index++){
-		counter_read_one(counter_values_bytes, size_bytes, counter_values_packets, size_packets, index, response);
+	for (int index = 0; index < size_packets || index < size_bytes; index++){
+		auto entry = response->add_entities()->mutable_counter_entry();
+		entry->set_counter_id(counter_id);
+		auto index_msg = entry->mutable_index();
+		index_msg->set_index(index);
+		counter_read_one(counter_values_bytes, size_bytes, counter_values_packets, size_packets, index, entry);
 	}
 	status = grpc::Status::OK;
         return status;
